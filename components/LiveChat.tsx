@@ -62,11 +62,10 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
             console.log('Gemini Live Connected');
             setIsConnected(true);
             
-            // Start streaming audio from mic
+            // Stream audio from the microphone to the model.
             const source = inputAudioContext.createMediaStreamSource(stream);
             inputSourceRef.current = source;
             
-            // Process audio chunks
             const scriptProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
             inputNodeRef.current = scriptProcessor;
             
@@ -74,6 +73,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmBlob = createBlob(inputData);
               
+              // CRITICAL: Solely rely on sessionPromise resolves and then call `session.sendRealtimeInput`
               sessionPromise.then((session: any) => {
                 session.sendRealtimeInput({ media: pcmBlob });
               });
@@ -169,10 +169,25 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
     }
-    if (inputSourceRef.current) inputSourceRef.current.disconnect();
-    if (inputNodeRef.current) inputNodeRef.current.disconnect();
-    if (inputAudioContextRef.current) inputAudioContextRef.current.close();
-    if (outputAudioContextRef.current) outputAudioContextRef.current.close();
+    if (inputSourceRef.current) {
+        inputSourceRef.current.disconnect();
+        inputSourceRef.current = null;
+    }
+    if (inputNodeRef.current) {
+        inputNodeRef.current.disconnect();
+        inputNodeRef.current = null;
+    }
+    
+    // Check state before closing to avoid "Cannot close a closed AudioContext" error
+    if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
+        inputAudioContextRef.current.close();
+    }
+    inputAudioContextRef.current = null;
+
+    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
+        outputAudioContextRef.current.close();
+    }
+    outputAudioContextRef.current = null;
     
     sourcesRef.current.forEach(s => s.stop());
     sourcesRef.current.clear();
