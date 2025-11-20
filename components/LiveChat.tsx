@@ -46,7 +46,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
       inputAudioContextRef.current = inputAudioContext;
       outputAudioContextRef.current = outputAudioContext;
       
-      // Reset cursor for new session to avoid scheduling issues
+      // Reset cursor for new session
       nextStartTimeRef.current = 0;
 
       const outputNode = outputAudioContext.createGain();
@@ -170,11 +170,24 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
     }
   };
 
+  // Helper to close context safely with error swallowing for race conditions
+  const safeCloseContext = async (ctx: AudioContext) => {
+    try {
+        if (ctx.state !== 'closed') {
+            await ctx.close();
+        }
+    } catch (e) {
+        // Ignore "Cannot close a closed AudioContext" or similar errors
+        // caused by race conditions during rapid connect/disconnect cycles.
+        console.warn("AudioContext close warning suppressed:", e);
+    }
+  };
+
   const handleDisconnect = () => {
     setIsConnected(false);
     setIsSpeaking(false);
     
-    // Cleanup Audio
+    // Cleanup Audio Streams
     if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -188,17 +201,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
         inputNodeRef.current = null;
     }
     
-    // Helper to close context safely
-    const safeCloseContext = async (ctx: AudioContext) => {
-        try {
-            if (ctx.state !== 'closed') {
-                await ctx.close();
-            }
-        } catch (e) {
-            console.error("Error closing AudioContext:", e);
-        }
-    };
-
+    // Close Audio Contexts safely
     if (inputAudioContextRef.current) {
         safeCloseContext(inputAudioContextRef.current);
         inputAudioContextRef.current = null;
@@ -209,6 +212,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
         outputAudioContextRef.current = null;
     }
     
+    // Stop all active sources
     if (sourcesRef.current) {
         sourcesRef.current.forEach(s => {
             try { s.stop(); } catch (e) {}
@@ -216,6 +220,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
         sourcesRef.current.clear();
     }
 
+    // Close Gemini Session
     if (cleanupRef.current) {
         cleanupRef.current();
         cleanupRef.current = null;
