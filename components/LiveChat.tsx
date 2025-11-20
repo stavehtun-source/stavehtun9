@@ -45,6 +45,9 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
       
       inputAudioContextRef.current = inputAudioContext;
       outputAudioContextRef.current = outputAudioContext;
+      
+      // Reset cursor for new session to avoid scheduling issues
+      nextStartTimeRef.current = 0;
 
       const outputNode = outputAudioContext.createGain();
       outputNode.connect(outputAudioContext.destination);
@@ -52,6 +55,13 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
 
       // 2. Request Mic Access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Guard: Check if user cancelled/disconnected while waiting for permissions
+      if (!inputAudioContextRef.current) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+      }
+
       streamRef.current = stream;
 
       // 3. Connect to Gemini Live
@@ -178,19 +188,33 @@ const LiveChat: React.FC<LiveChatProps> = ({ lang }) => {
         inputNodeRef.current = null;
     }
     
-    // Check state before closing to avoid "Cannot close a closed AudioContext" error
-    if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') {
-        inputAudioContextRef.current.close();
-    }
-    inputAudioContextRef.current = null;
+    // Helper to close context safely
+    const safeCloseContext = async (ctx: AudioContext) => {
+        try {
+            if (ctx.state !== 'closed') {
+                await ctx.close();
+            }
+        } catch (e) {
+            console.error("Error closing AudioContext:", e);
+        }
+    };
 
-    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') {
-        outputAudioContextRef.current.close();
+    if (inputAudioContextRef.current) {
+        safeCloseContext(inputAudioContextRef.current);
+        inputAudioContextRef.current = null;
     }
-    outputAudioContextRef.current = null;
+
+    if (outputAudioContextRef.current) {
+        safeCloseContext(outputAudioContextRef.current);
+        outputAudioContextRef.current = null;
+    }
     
-    sourcesRef.current.forEach(s => s.stop());
-    sourcesRef.current.clear();
+    if (sourcesRef.current) {
+        sourcesRef.current.forEach(s => {
+            try { s.stop(); } catch (e) {}
+        });
+        sourcesRef.current.clear();
+    }
 
     if (cleanupRef.current) {
         cleanupRef.current();
