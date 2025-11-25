@@ -1,14 +1,108 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Trade, TradeStatus, TradeType, Language } from '../types';
 import { getTranslation } from '../translations';
-import { Trash2, ArrowUpRight, ArrowDownRight, Calendar, DollarSign } from 'lucide-react';
+import { Trash2, ArrowUpRight, ArrowDownRight, Calendar, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface TradeListProps {
   trades: Trade[];
   onDelete: (id: string) => void;
   lang: Language;
 }
+
+const TradeCard = ({ trade, onDelete, getStatusBadge, t }: { trade: Trade, onDelete: (id: string) => void, getStatusBadge: (status: TradeStatus) => React.ReactNode, t: (key: string) => string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div 
+        className={`glass-card rounded-2xl transition-all duration-300 overflow-hidden ${isExpanded ? 'bg-midnight-800 ring-1 ring-emerald-500/30' : 'active:scale-[0.98]'}`}
+        onClick={() => setIsExpanded(!isExpanded)}
+    >
+        <div className="p-5">
+            {/* Main Header Row */}
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                     <div className={`p-2 rounded-lg ${trade.type === TradeType.BUY ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                         {trade.type === TradeType.BUY ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-white text-lg leading-none">{trade.pair}</h3>
+                        <p className="text-xs text-slate-400 mt-1">
+                           {new Date(trade.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} • {trade.lotSize} Lot
+                        </p>
+                    </div>
+                </div>
+                
+                <div className="flex flex-col items-end gap-1">
+                     <span className={`font-mono font-bold text-lg ${trade.pnl > 0 ? 'text-emerald-400' : trade.pnl < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                        {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                    </span>
+                    {getStatusBadge(trade.status)}
+                </div>
+            </div>
+
+            {/* Expanded Content */}
+            {isExpanded && (
+                <div className="mt-4 pt-4 border-t border-white/5 animate-fade-in space-y-4" onClick={(e) => e.stopPropagation()}>
+                    {/* Prices Grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                         <div className="bg-white/5 rounded-lg p-2.5 border border-white/5">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">{t('entryPrice')}</span>
+                            <span className="text-slate-200 font-mono text-sm">{trade.entryPrice}</span>
+                        </div>
+                         <div className="bg-white/5 rounded-lg p-2.5 border border-white/5">
+                            <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">{t('exitPrice')}</span>
+                            <span className="text-slate-200 font-mono text-sm">{trade.exitPrice}</span>
+                        </div>
+                    </div>
+                    
+                    {/* Details */}
+                    <div className="space-y-3">
+                        {trade.setup && (
+                             <div>
+                                <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">{t('strategy')}</span>
+                                <p className="text-sm text-slate-300">{trade.setup}</p>
+                             </div>
+                        )}
+                        {trade.notes && (
+                             <div>
+                                <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">{t('notes')}</span>
+                                <p className="text-sm text-slate-400 italic bg-black/20 p-2 rounded border border-white/5 leading-relaxed">{trade.notes}</p>
+                             </div>
+                        )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex justify-end pt-2">
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(trade.id);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 text-xs font-bold transition-colors border border-red-500/10"
+                        >
+                            <Trash2 size={14} />
+                            DELETE
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            {/* Expand Hint */}
+            {!isExpanded && (
+                <div className="flex justify-center mt-3 opacity-30">
+                     <ChevronDown size={16} />
+                </div>
+            )}
+            {isExpanded && (
+                <div className="flex justify-center mt-3 opacity-30" onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}>
+                     <ChevronUp size={16} />
+                </div>
+            )}
+        </div>
+    </div>
+  );
+};
 
 const TradeList: React.FC<TradeListProps> = ({ trades, onDelete, lang }) => {
   const t = (key: any) => getTranslation(lang, key);
@@ -25,7 +119,7 @@ const TradeList: React.FC<TradeListProps> = ({ trades, onDelete, lang }) => {
     };
 
     return (
-      <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ring-1 ${styles[status]} inline-flex items-center gap-1 uppercase tracking-wider`}>
+      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ring-1 ${styles[status]} inline-flex items-center gap-1 uppercase tracking-wider`}>
         <span className={`w-1.5 h-1.5 rounded-full ${status === TradeStatus.WIN ? 'bg-emerald-400' : status === TradeStatus.LOSS ? 'bg-red-400' : 'bg-amber-400'}`}></span>
         {status}
       </span>
@@ -109,52 +203,13 @@ const TradeList: React.FC<TradeListProps> = ({ trades, onDelete, lang }) => {
     {/* Mobile View (Cards) - Better for Android users */}
     <div className="md:hidden space-y-4 pb-20">
         {sortedTrades.map((trade) => (
-            <div key={trade.id} className="glass-card p-5 rounded-2xl active:scale-[0.98] transition-transform">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${trade.type === TradeType.BUY ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                             {trade.type === TradeType.BUY ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-white text-lg leading-none">{trade.pair}</h3>
-                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                <Calendar size={10}/>
-                                {new Date(trade.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                        {getStatusBadge(trade.status)}
-                        <span className={`font-mono font-bold text-lg ${trade.pnl > 0 ? 'text-emerald-400' : trade.pnl < 0 ? 'text-red-400' : 'text-slate-400'}`}>
-                            {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
-                        </span>
-                    </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 text-xs mb-4">
-                    <div className="bg-white/5 rounded-lg p-2 border border-white/5">
-                        <span className="text-slate-500 block mb-1">Entry</span>
-                        <span className="text-slate-200 font-mono">{trade.entryPrice}</span>
-                    </div>
-                     <div className="bg-white/5 rounded-lg p-2 border border-white/5">
-                        <span className="text-slate-500 block mb-1">Exit</span>
-                        <span className="text-slate-200 font-mono">{trade.exitPrice}</span>
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-3 border-t border-white/5">
-                     <div className="text-xs text-slate-500">
-                        {trade.setup && <span className="bg-white/5 px-2 py-1 rounded mr-2">{trade.setup}</span>}
-                        Lot: {trade.lotSize}
-                     </div>
-                     <button 
-                        onClick={() => onDelete(trade.id)}
-                        className="p-2 text-slate-500 hover:text-red-400"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                </div>
-            </div>
+            <TradeCard 
+                key={trade.id} 
+                trade={trade} 
+                onDelete={onDelete} 
+                getStatusBadge={getStatusBadge}
+                t={t}
+            />
         ))}
     </div>
     </>
