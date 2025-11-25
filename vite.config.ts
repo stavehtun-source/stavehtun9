@@ -5,6 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [react()],
+    base: './', // Essential for loading assets when bundled in Android 'assets' folder
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY)
     }

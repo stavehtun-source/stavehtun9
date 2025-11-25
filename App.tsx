@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import TradeList from './components/TradeList';
@@ -8,8 +7,8 @@ import LiveChat from './components/LiveChat';
 import Auth from './components/Auth';
 import UserProfile from './components/UserProfile';
 import { Trade, TradeStatus, TradeType, View, User, Language } from './types';
-import { translations, getTranslation, TranslationKey } from './translations';
-import { LayoutDashboard, BookOpen, PlusCircle, BrainCircuit, LogOut, User as UserIcon, Settings, ChevronRight, Globe, Mic } from 'lucide-react';
+import { getTranslation, TranslationKey } from './translations';
+import { LayoutDashboard, BookOpen, PlusCircle, BrainCircuit, LogOut, User as UserIcon, Settings, ChevronRight, Globe, Mic, Plus } from 'lucide-react';
 
 // Initial mock data
 const MOCK_TRADES: Trade[] = [
@@ -47,276 +46,198 @@ const MOCK_TRADES: Trade[] = [
     pair: 'USDJPY',
     type: TradeType.BUY,
     entryPrice: 149.00,
-    exitPrice: 149.80,
-    lotSize: 1.0,
-    pnl: 600,
+    exitPrice: 149.50,
+    lotSize: 0.8,
+    pnl: 350,
     status: TradeStatus.WIN,
-    setup: 'Trend Continuation',
-    notes: 'Added to position as it moved in my favor.',
+    setup: 'Trendline Break',
+    notes: 'Strong momentum on 1H timeframe.',
     tags: ['Trend']
-  },
-  {
-    id: '4',
-    date: '2023-10-05',
-    pair: 'XAUUSD',
-    type: TradeType.SELL,
-    entryPrice: 1820,
-    exitPrice: 1825,
-    lotSize: 0.2,
-    pnl: -100,
-    status: TradeStatus.LOSS,
-    setup: 'Supply Zone',
-    notes: 'News event spike took out stop loss.',
-    tags: ['Reversal']
-  },
-  {
-    id: '5',
-    date: '2023-10-06',
-    pair: 'EURUSD',
-    type: TradeType.SELL,
-    entryPrice: 1.0600,
-    exitPrice: 1.0520,
-    lotSize: 1.0,
-    pnl: 800,
-    status: TradeStatus.WIN,
-    setup: 'Double Top',
-    notes: 'Perfect execution.',
-    tags: ['Reversal']
   }
 ];
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [currentView, setCurrentView] = useState<View>('dashboard');
   const [trades, setTrades] = useState<Trade[]>(MOCK_TRADES);
-  const [view, setView] = useState<View>('dashboard');
-  const [lang, setLang] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('en');
 
-  // Helpers
-  const t = (key: TranslationKey) => getTranslation(lang, key);
-
-  // Load data from local storage
+  // Auto-save whole journal backup
   useEffect(() => {
-    const savedTrades = localStorage.getItem('protrade_journal');
-    if (savedTrades) {
-      setTrades(JSON.parse(savedTrades));
+    if (user) {
+      const backupInterval = setInterval(() => {
+        localStorage.setItem('protrade_backup_trades', JSON.stringify(trades));
+      }, 30000);
+      return () => clearInterval(backupInterval);
     }
-    
-    const savedUser = localStorage.getItem('protrade_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+  }, [trades, user]);
 
-    const savedLang = localStorage.getItem('protrade_lang') as Language;
-    if (savedLang) {
-      setLang(savedLang);
+  // Restore backup on load
+  useEffect(() => {
+    const backup = localStorage.getItem('protrade_backup_trades');
+    if (backup) {
+      try {
+        setTrades(JSON.parse(backup));
+      } catch (e) {
+        console.error("Failed to load backup", e);
+      }
     }
   }, []);
 
-  // Save data to local storage on change
-  useEffect(() => {
-    localStorage.setItem('protrade_journal', JSON.stringify(trades));
-  }, [trades]);
-
-  // Auto-save interval (every 30 seconds) as a backup
-  useEffect(() => {
-    const saveInterval = setInterval(() => {
-      localStorage.setItem('protrade_journal', JSON.stringify(trades));
-    }, 30000);
-    return () => clearInterval(saveInterval);
-  }, [trades]);
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('protrade_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('protrade_user');
-    }
-  }, [user]);
-
-  useEffect(() => {
-    localStorage.setItem('protrade_lang', lang);
-  }, [lang]);
-
-  const handleAddTrade = (newTrade: Trade) => {
-    setTrades(prev => [newTrade, ...prev]);
-    setView('journal');
-  };
-
-  const handleDeleteTrade = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this trade?')) {
-      setTrades(prev => prev.filter(t => t.id !== id));
-    }
-  };
-
-  const handleLogin = (userData: User) => {
-    setUser(userData);
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
   };
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to log out?')) {
-      setUser(null);
-      setView('dashboard');
+    setUser(null);
+    setCurrentView('dashboard');
+  };
+
+  const handleSaveTrade = (newTrade: Trade) => {
+    setTrades([newTrade, ...trades]);
+    setCurrentView('journal');
+  };
+
+  const handleDeleteTrade = (id: string) => {
+    if (confirm('Are you sure you want to delete this trade?')) {
+      setTrades(trades.filter(t => t.id !== id));
     }
   };
 
-  // Language Switcher Component
-  const LangSwitcher = () => (
-    <div className="flex items-center gap-1 bg-midnight-900/50 rounded-lg p-1 border border-white/5">
-      {(['en', 'mm', 'rk'] as Language[]).map((l) => (
-        <button
-          key={l}
-          onClick={() => setLang(l)}
-          className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all ${
-            lang === l 
-              ? 'bg-white/10 text-white shadow-sm' 
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
-        >
-          {l === 'en' ? 'ENG' : l === 'mm' ? 'MYN' : 'RAK'}
-        </button>
-      ))}
-    </div>
-  );
+  const t = (key: TranslationKey) => getTranslation(language, key);
 
-  // If not logged in, show Auth screen
-  if (!user) {
-    return (
-      <>
-        <div className="absolute top-6 right-6 z-50">
-           <LangSwitcher />
-        </div>
-        <Auth onLogin={handleLogin} lang={lang} />
-      </>
-    );
-  }
-
-  const NavItem = ({ targetView, icon: Icon, label }: { targetView: View, icon: any, label: string }) => (
+  const NavItem = ({ view, icon: Icon, label, isMobile = false }: { view: View, icon: any, label: string, isMobile?: boolean }) => (
     <button
-      onClick={() => setView(targetView)}
-      className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-        view === targetView 
-          ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 text-emerald-400 border border-emerald-500/10 shadow-lg shadow-emerald-900/20' 
-          : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+      onClick={() => setCurrentView(view)}
+      className={`${
+        isMobile 
+        ? 'flex flex-col items-center gap-1 p-2 flex-1' 
+        : 'w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1'
+      } ${
+        currentView === view
+          ? isMobile ? 'text-emerald-400' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+          : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
       }`}
     >
-      <div className="flex items-center gap-3">
-        <Icon size={20} className={`${view === targetView ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-        <span className="font-medium tracking-wide text-sm">{label}</span>
-      </div>
-      {view === targetView && <ChevronRight size={16} className="text-emerald-500/50" />}
+      <Icon size={isMobile ? 24 : 20} strokeWidth={currentView === view ? 2.5 : 2} />
+      <span className={isMobile ? "text-[10px] font-medium" : "font-medium"}>{label}</span>
     </button>
   );
 
-  return (
-    <div className="flex min-h-screen bg-midnight-950 text-slate-200 font-sans overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Background Ambient Effects */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
-         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-emerald-600/10 rounded-full blur-[120px] opacity-40"></div>
-         <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] opacity-40"></div>
-      </div>
+  if (!user) {
+    return <Auth onLogin={handleLogin} lang={language} />;
+  }
 
-      {/* Sidebar */}
-      <aside className="w-72 hidden md:flex flex-col h-screen z-20 bg-midnight-950/50 backdrop-blur-xl border-r border-white/5 relative">
-        <div className="p-8 mb-2">
-          <div className="flex items-center gap-3 mb-1">
-             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-emerald-400 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <svg className="w-5 h-5 text-midnight-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-             </div>
-             <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent tracking-tight">
-                ProTrade
-             </h1>
+  return (
+    <div className="min-h-screen bg-midnight-950 text-slate-200 font-sans selection:bg-emerald-500/30 flex flex-col md:flex-row">
+      
+      {/* --- Desktop Sidebar (Hidden on Mobile) --- */}
+      <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-midnight-900 border-r border-white/5 p-6 z-50">
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <div className="w-8 h-8 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
+             <span className="font-bold text-white text-lg">P</span>
           </div>
-          <p className="text-[10px] text-slate-500 font-medium tracking-widest uppercase pl-11">{t('premium')}</p>
+          <h1 className="text-xl font-bold text-white tracking-tight">ProTrade<span className="text-emerald-400">.AI</span></h1>
         </div>
-        
-        <nav className="flex-1 px-4 space-y-2">
-          <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('menu')}</div>
-          <NavItem targetView="dashboard" icon={LayoutDashboard} label={t('dashboard')} />
-          <NavItem targetView="journal" icon={BookOpen} label={t('journal')} />
-          <NavItem targetView="analysis" icon={BrainCircuit} label={t('aiCoach')} />
-          <NavItem targetView="live-chat" icon={Mic} label={t('liveChat')} />
+
+        <nav className="flex-1 space-y-1">
+          <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 mt-2">{t('menu')}</p>
+          <NavItem view="dashboard" icon={LayoutDashboard} label={t('dashboard')} />
+          <NavItem view="journal" icon={BookOpen} label={t('journal')} />
+          <NavItem view="add-trade" icon={PlusCircle} label={t('newEntry')} />
           
-          <div className="px-4 mt-8 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('account')}</div>
-          <NavItem targetView="profile" icon={UserIcon} label={t('profile')} />
+          <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 mt-8">{t('premium')}</p>
+          <NavItem view="analysis" icon={BrainCircuit} label={t('aiCoach')} />
+          <NavItem view="live-chat" icon={Mic} label={t('liveChat')} />
+
+          <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 mt-8">{t('account')}</p>
+          <NavItem view="profile" icon={UserIcon} label={t('profile')} />
         </nav>
 
-        <div className="p-6 border-t border-white/5 space-y-4">
-          <LangSwitcher />
-          <button 
-            onClick={() => setView('add-trade')}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/40 border border-emerald-400/20 group relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-            <PlusCircle size={20} className="relative z-10" />
-            <span className="relative z-10">{t('newEntry')}</span>
-          </button>
+        <div className="mt-auto pt-6 border-t border-white/5">
+           <div className="bg-midnight-800 rounded-xl p-3 flex items-center gap-3 border border-white/5 mb-4">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">
+                 {user.name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                 <p className="text-sm font-bold text-white truncate">{user.name}</p>
+                 <p className="text-xs text-emerald-400">Pro Member</p>
+              </div>
+           </div>
+           
+           {/* Language Switcher Desktop */}
+           <div className="flex bg-midnight-950 rounded-lg p-1 mb-3 border border-white/5">
+              {(['en', 'mm', 'rk'] as Language[]).map(l => (
+                  <button 
+                    key={l}
+                    onClick={() => setLanguage(l)}
+                    className={`flex-1 py-1 text-xs font-bold rounded uppercase transition-colors ${language === l ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    {l}
+                  </button>
+              ))}
+           </div>
         </div>
       </aside>
 
-      {/* Mobile Nav */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-midnight-950/80 backdrop-blur-lg border-b border-white/5 p-4 z-50 flex justify-between items-center">
-         <div className="flex items-center gap-2">
-             <div className="w-6 h-6 rounded bg-gradient-to-tr from-emerald-400 to-cyan-400"></div>
-             <h1 className="text-lg font-bold text-white">ProTrade</h1>
-         </div>
-         <div className="flex gap-1 items-center">
-            <button onClick={() => {
-                // Toggle language cycle on mobile
-                const next = lang === 'en' ? 'mm' : lang === 'mm' ? 'rk' : 'en';
-                setLang(next);
-            }} className="p-2 rounded-lg text-slate-400 bg-white/5 mr-2 font-bold text-xs border border-white/5">
-                {lang.toUpperCase()}
-            </button>
-            <button onClick={() => setView('dashboard')} className={`p-2 rounded-lg ${view === 'dashboard' ? 'text-emerald-400 bg-white/5' : 'text-slate-400'}`}><LayoutDashboard size={20}/></button>
-            <button onClick={() => setView('journal')} className={`p-2 rounded-lg ${view === 'journal' ? 'text-emerald-400 bg-white/5' : 'text-slate-400'}`}><BookOpen size={20}/></button>
-            <button onClick={() => setView('live-chat')} className={`p-2 rounded-lg ${view === 'live-chat' ? 'text-emerald-400 bg-white/5' : 'text-slate-400'}`}><Mic size={20}/></button>
-            <button onClick={() => setView('add-trade')} className={`p-2 rounded-lg ${view === 'add-trade' ? 'text-emerald-400 bg-white/5' : 'text-slate-400'}`}><PlusCircle size={20}/></button>
-         </div>
-      </div>
+      {/* --- Main Content Area --- */}
+      <main className="flex-1 relative min-w-0 pb-24 md:pb-0 overflow-y-auto h-screen">
+        
+        {/* Mobile Top Header (Safe Area) */}
+        <header className="md:hidden sticky top-0 z-40 bg-midnight-950/80 backdrop-blur-md border-b border-white/5 px-4 pt-[env(safe-area-inset-top)] pb-3">
+           <div className="flex justify-between items-center pt-3">
+              <div className="flex items-center gap-2">
+                 <div className="w-7 h-7 bg-gradient-to-tr from-emerald-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                    <span className="font-bold text-white text-sm">P</span>
+                 </div>
+                 <h1 className="font-bold text-white text-lg">ProTrade</h1>
+              </div>
+              <div className="flex items-center gap-3">
+                 {/* Lang Switcher Mobile */}
+                 <button 
+                    onClick={() => setLanguage(prev => prev === 'en' ? 'mm' : prev === 'mm' ? 'rk' : 'en')}
+                    className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 border border-white/5 text-xs font-bold uppercase"
+                 >
+                    {language}
+                 </button>
+                 <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-xs border border-emerald-500/30">
+                    {user.name.charAt(0)}
+                 </div>
+              </div>
+           </div>
+        </header>
 
-      {/* Main Content */}
-      <main className="flex-1 relative z-10 h-screen overflow-y-auto scroll-smooth">
-        <div className="max-w-7xl mx-auto p-6 md:p-12 pt-24 md:pt-12">
-          {/* Header */}
-          <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-6 border-b border-white/5">
-            <div>
-              <h2 className="text-4xl font-bold text-white capitalize tracking-tight">
-                {view === 'add-trade' ? t('logTrade') : view === 'analysis' ? t('geminiTitle') : view === 'live-chat' ? t('liveChat') : view === 'dashboard' ? t('dashboard') : view === 'journal' ? t('journal') : t('profile')}
-              </h2>
-              <p className="text-slate-400 mt-2 text-lg font-light">
-                {view === 'dashboard' && `${t('welcome')}, ${user.name.split(' ')[0]}.`}
-                {view === 'journal' && t('executionDetails')}
-                {view === 'analysis' && t('geminiDesc').substring(0, 50) + '...'}
-                {view === 'live-chat' && t('liveVoiceDesc')}
-                {view === 'profile' && t('preferences')}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-               <button 
-                  onClick={() => setView('profile')}
-                  className="hidden md:flex items-center gap-3 pl-1.5 pr-4 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 transition-all hover:border-white/10 group"
-               >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-sm font-bold text-white shadow-md">
-                    {user.avatar ? <img src={user.avatar} alt="User" className="w-full h-full object-cover rounded-full"/> : user.name.charAt(0)}
-                  </div>
-                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">{user.name}</span>
-               </button>
-            </div>
-          </header>
-
-          {/* View Content */}
-          <div className="animate-fade-in">
-            {view === 'dashboard' && <Dashboard trades={trades} lang={lang} />}
-            {view === 'journal' && <TradeList trades={trades} onDelete={handleDeleteTrade} lang={lang} />}
-            {view === 'add-trade' && <TradeForm onSave={handleAddTrade} onCancel={() => setView('journal')} lang={lang} />}
-            {view === 'analysis' && <AIAnalysis trades={trades} lang={lang} />}
-            {view === 'live-chat' && <LiveChat lang={lang} />}
-            {view === 'profile' && <UserProfile user={user} onLogout={handleLogout} lang={lang} />}
-          </div>
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+          {currentView === 'dashboard' && <Dashboard trades={trades} lang={language} />}
+          {currentView === 'journal' && <TradeList trades={trades} onDelete={handleDeleteTrade} lang={language} />}
+          {currentView === 'add-trade' && <TradeForm onSave={handleSaveTrade} onCancel={() => setCurrentView('dashboard')} lang={language} />}
+          {currentView === 'analysis' && <AIAnalysis trades={trades} lang={language} />}
+          {currentView === 'live-chat' && <LiveChat lang={language} />}
+          {currentView === 'profile' && <UserProfile user={user} onLogout={handleLogout} lang={language} />}
         </div>
       </main>
+
+      {/* --- Android Bottom Navigation Bar --- */}
+      <nav className="md:hidden fixed bottom-0 w-full bg-midnight-950/90 backdrop-blur-xl border-t border-white/10 z-50 pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-center justify-between px-2 py-2">
+            <NavItem isMobile view="dashboard" icon={LayoutDashboard} label={t('dashboard')} />
+            <NavItem isMobile view="journal" icon={BookOpen} label={t('journal')} />
+            
+            {/* Floating Add Button */}
+            <div className="relative -top-6">
+                <button 
+                    onClick={() => setCurrentView('add-trade')}
+                    className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 shadow-lg shadow-emerald-500/30 flex items-center justify-center text-white transform transition-transform active:scale-90 border-4 border-midnight-950"
+                >
+                    <Plus size={28} strokeWidth={3} />
+                </button>
+            </div>
+
+            <NavItem isMobile view="live-chat" icon={Mic} label="AI Voice" />
+            <NavItem isMobile view="analysis" icon={BrainCircuit} label="Coach" />
+        </div>
+      </nav>
+
     </div>
   );
 };
